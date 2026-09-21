@@ -1,0 +1,21 @@
+---
+- name: Install YCR credential provider binary
+  ansible.builtin.copy:
+    src: ycr-credential-provider
+    dest: /usr/local/libexec/kubelet-credential-providers/ycr-credential-provider
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install kubelet credential provider configuration
+  ansible.builtin.copy:
+    src: credential-provider.yaml
+    dest: /etc/kubernetes/credential-provider.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart kubelet
+
+# Configure kubelet with these arguments using your cluster provisioning role:
+# --image-credential-provider-bin-dir=/usr/local/libexec/kubelet-credential-providers
+# --image-credential-provider-config=/etc/kubernetes/credential-provider.yaml

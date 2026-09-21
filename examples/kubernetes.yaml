@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: website
+  namespace: asmblyr-website
+  annotations:
+    yandex.cloud/federated-yc-service-account-id: aje00000000000000000
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ycr-image-pull-token-audience
+rules:
+  - apiGroups: [""]
+    resources: ["asmblyr-ycr"]
+    verbs: ["request-serviceaccounts-token-audience"]
+    resourceNames: ["website"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ycr-image-pull-token-audience
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ycr-image-pull-token-audience
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:nodes
