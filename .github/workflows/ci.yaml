@@ -27,3 +27,7 @@ jobs:
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/ycr-credential-provider-linux-amd64 ./cmd/ycr-credential-provider
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o dist/ycr-credential-provider-linux-arm64 ./cmd/ycr-credential-provider
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o dist/lockbox-eso-provider-linux-amd64 ./cmd/lockbox-eso-provider
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o dist/lockbox-eso-provider-linux-arm64 ./cmd/lockbox-eso-provider
+      - name: Build Lockbox provider container
+        run: docker build --file Dockerfile.lockbox --tag lockbox-eso-provider:test .

@@ -1,0 +1,8 @@
+.git
+.github
+dist
+examples
+README.md
+SECURITY.md
+LICENSE
+**/*_test.go
