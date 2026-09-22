@@ -50,6 +50,29 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
   ./cmd/ycr-credential-provider
 ```
 
+## Releases
+
+Pushing a semantic version tag such as `v0.2.0` runs the release workflow. It
+tests the tagged source, builds static Linux binaries for `amd64` and `arm64`,
+generates `SHA256SUMS`, and publishes the assets to GitHub Releases using the
+repository-scoped `GITHUB_TOKEN`.
+
+Download and verify a pinned version before installing it on a node:
+
+```bash
+version=v0.1.0
+base_url="https://github.com/Yniphe/ycr-credential-provider/releases/download/${version}"
+
+curl --fail --location --remote-name \
+  "${base_url}/ycr-credential-provider-linux-amd64"
+curl --fail --location --remote-name "${base_url}/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The workflow can also release an existing tag through `workflow_dispatch`. A
+tag containing a prerelease suffix, for example `v0.2.0-rc.1`, is published as
+a GitHub prerelease.
+
 ## Installation
 
 Copy the binary to every worker node, for example:

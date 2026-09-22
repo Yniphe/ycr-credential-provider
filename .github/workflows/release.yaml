@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Git tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          build_date="$(git show -s --format=%cI HEAD)"
+          ldflags="-s -w -X main.version=${RELEASE_TAG} -X main.commit=${commit} -X main.date=${build_date}"
+
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
+              go build -buildvcs=false -trimpath -ldflags "${ldflags}" \
+              -o "dist/ycr-credential-provider-linux-${arch}" \
+              ./cmd/ycr-credential-provider
+          done
+
+          (
+            cd dist
+            sha256sum \
+              ycr-credential-provider-linux-amd64 \
+              ycr-credential-provider-linux-arm64 \
+              > SHA256SUMS
+          )
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          prerelease=()
+          if [[ "${RELEASE_TAG}" == *-* ]]; then
+            prerelease+=(--prerelease)
+          fi
+
+          gh release create "${RELEASE_TAG}" \
+            dist/ycr-credential-provider-linux-amd64 \
+            dist/ycr-credential-provider-linux-arm64 \
+            dist/SHA256SUMS \
+            --verify-tag \
+            --title "ycr-credential-provider ${RELEASE_TAG}" \
+            --generate-notes \
+            "${prerelease[@]}"
