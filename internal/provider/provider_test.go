@@ -36,11 +36,11 @@ func TestProvideExchangesTokenAndReturnsRegistryCredentials(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertFormValue(t, form, "grant_type", grantType)
-		assertFormValue(t, form, "requested_token_type", requestedType)
+		assertFormValue(t, form, "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
+		assertFormValue(t, form, "requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
 		assertFormValue(t, form, "audience", ycSAID)
 		assertFormValue(t, form, "subject_token", ksaToken)
-		assertFormValue(t, form, "subject_token_type", subjectTokenType)
+		assertFormValue(t, form, "subject_token_type", "urn:ietf:params:oauth:token-type:id_token")
 
 		writer.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(writer).Encode(map[string]any{

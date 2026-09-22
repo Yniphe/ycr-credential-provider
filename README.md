@@ -1,4 +1,18 @@
-# YCR kubelet credential provider
+# Yandex Cloud Kubernetes workload identity providers
+
+This repository contains small, keyless integrations between self-managed
+Kubernetes clusters and Yandex Cloud:
+
+- `ycr-credential-provider`: kubelet image credential provider for private YCR
+  image pulls.
+- `lockbox-eso-provider`: loopback webhook sidecar that lets External Secrets
+  Operator read Yandex Lockbox through Workload Identity Federation.
+
+Both components exchange short-lived, projected Kubernetes ServiceAccount
+tokens for short-lived Yandex IAM tokens. They never require an authorized
+service account key.
+
+## YCR kubelet credential provider
 
 `ycr-credential-provider` lets a self-managed Kubernetes cluster pull private
 images from Yandex Container Registry without `imagePullSecrets` or long-lived
@@ -67,6 +81,13 @@ curl --fail --location --remote-name \
   "${base_url}/ycr-credential-provider-linux-amd64"
 curl --fail --location --remote-name "${base_url}/SHA256SUMS"
 sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The same release also contains `lockbox-eso-provider` Linux binaries and a
+multi-architecture image at:
+
+```text
+ghcr.io/yniphe/lockbox-eso-provider:<version>
 ```
 
 The workflow can also release an existing tag through `workflow_dispatch`. A
@@ -165,6 +186,45 @@ Cloud identity. Prefer the annotation for namespace and workload isolation.
   before expiry.
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and trust boundaries.
+
+## Lockbox provider for External Secrets Operator
+
+`lockbox-eso-provider` is a small HTTP service intended to run as a sidecar in
+the External Secrets Operator pod. It:
+
+1. reads a projected Kubernetes ServiceAccount token from a file;
+2. exchanges it for a short-lived Yandex IAM token;
+3. requests one explicitly allowed text property from Yandex Lockbox;
+4. returns the value to ESO's generic webhook provider.
+
+The default listener is `127.0.0.1:8081`. Keep it on loopback so secret values
+never traverse the pod network. The provider refuses to start without an exact
+Lockbox secret ID allowlist.
+
+Example Helm values, a namespace-scoped `SecretStore`, and an `ExternalSecret`
+are in [`examples/lockbox-eso-provider`](examples/lockbox-eso-provider/README.md).
+
+Run the provider locally only with a projected token and a least-privilege
+Yandex Cloud service account:
+
+```text
+lockbox-eso-provider \
+  --service-account-id=<YANDEX_SERVICE_ACCOUNT_ID> \
+  --allowed-secret-ids=<LOCKBOX_SECRET_ID>
+```
+
+Configuration:
+
+| Flag | Environment | Default |
+| --- | --- | --- |
+| `--listen-address` | `LISTEN_ADDRESS` | `127.0.0.1:8081` |
+| `--token-url` | `YC_TOKEN_URL` | `https://auth.yandex.cloud/oauth/token` |
+| `--lockbox-api-url` | `YC_LOCKBOX_API_URL` | `https://payload.lockbox.api.cloud.yandex.net` |
+| `--service-account-id` | `YC_SERVICE_ACCOUNT_ID` | required |
+| `--service-account-token-file` | `YC_SERVICE_ACCOUNT_TOKEN_FILE` | `/var/run/secrets/yandex.cloud/token` |
+| `--allowed-secret-ids` | `LOCKBOX_ALLOWED_SECRET_IDS` | required |
+| `--timeout` | - | `10s` |
+| `--cache-safety-margin` | - | `5m` |
 
 ## Development
 

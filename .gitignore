@@ -1,6 +1,7 @@
 /bin/
 /dist/
 /.gocache/
+/.cache/
 *.exe
 *.test
 coverage.out

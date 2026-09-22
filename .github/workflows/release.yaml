@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -65,6 +66,10 @@ jobs:
               go build -buildvcs=false -trimpath -ldflags "${ldflags}" \
               -o "dist/ycr-credential-provider-linux-${arch}" \
               ./cmd/ycr-credential-provider
+            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
+              go build -buildvcs=false -trimpath -ldflags "${ldflags}" \
+              -o "dist/lockbox-eso-provider-linux-${arch}" \
+              ./cmd/lockbox-eso-provider
           done
 
           (
@@ -72,8 +77,40 @@ jobs:
             sha256sum \
               ycr-credential-provider-linux-amd64 \
               ycr-credential-provider-linux-arm64 \
+              lockbox-eso-provider-linux-amd64 \
+              lockbox-eso-provider-linux-arm64 \
               > SHA256SUMS
           )
+
+      - name: Publish Lockbox provider container
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${GH_TOKEN}" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          version="${RELEASE_TAG#v}"
+          commit="$(git rev-parse HEAD)"
+          build_date="$(git show -s --format=%cI HEAD)"
+          tags=(--tag "ghcr.io/${owner}/lockbox-eso-provider:${version}")
+          if [[ "${RELEASE_TAG}" != *-* ]]; then
+            tags+=(--tag "ghcr.io/${owner}/lockbox-eso-provider:latest")
+          fi
+
+          docker buildx create --driver docker-container --use
+          docker buildx build \
+            --file Dockerfile.lockbox \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "VERSION=${RELEASE_TAG}" \
+            --build-arg "COMMIT=${commit}" \
+            --build-arg "BUILD_DATE=${build_date}" \
+            --provenance=true \
+            --sbom=true \
+            "${tags[@]}" \
+            --push \
+            .
 
       - name: Publish GitHub release
         env:
@@ -89,8 +126,10 @@ jobs:
           gh release create "${RELEASE_TAG}" \
             dist/ycr-credential-provider-linux-amd64 \
             dist/ycr-credential-provider-linux-arm64 \
+            dist/lockbox-eso-provider-linux-amd64 \
+            dist/lockbox-eso-provider-linux-arm64 \
             dist/SHA256SUMS \
             --verify-tag \
-            --title "ycr-credential-provider ${RELEASE_TAG}" \
+            --title "Yandex Cloud providers ${RELEASE_TAG}" \
             --generate-notes \
             "${prerelease[@]}"

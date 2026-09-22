@@ -1,0 +1,52 @@
+# Values merged into the official external-secrets Helm chart.
+# Replace every angle-bracket placeholder before use and pin the image digest.
+
+serviceAccount:
+  create: true
+  name: external-secrets
+
+podSecurityContext:
+  enabled: true
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+
+extraVolumes:
+  - name: yandex-workload-identity
+    projected:
+      defaultMode: 0440
+      sources:
+        - serviceAccountToken:
+            path: token
+            audience: <YANDEX_WIF_AUDIENCE>
+            expirationSeconds: 3600
+
+extraContainers:
+  - name: yandex-lockbox-wif
+    image: ghcr.io/yniphe/lockbox-eso-provider:<VERSION>@sha256:<DIGEST>
+    imagePullPolicy: IfNotPresent
+    args:
+      - --listen-address=127.0.0.1:8081
+      - --service-account-id=<YANDEX_SERVICE_ACCOUNT_ID>
+      - --allowed-secret-ids=<LOCKBOX_SECRET_ID>
+    volumeMounts:
+      - name: yandex-workload-identity
+        mountPath: /var/run/secrets/yandex.cloud
+        readOnly: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
